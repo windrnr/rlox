@@ -1,1 +1,1 @@
-Implementación en progreso del Walking-Tree Parser de [Crafting and Interpreter](https://craftinginterpreters.com/) en Rust.
+Implementación en progreso del Walking-Tree Parser de [Crafting Interpreters](https://craftinginterpreters.com/) en Rust.
