@@ -8,49 +8,46 @@ use std::{
     usize,
 };
 
-pub struct Lox {
-    pub had_error: bool,
-}
-
-pub fn start(lox: Lox, mut args: Args) -> Result<(), Box<dyn Error>> {
+pub fn start(mut args: Args, fallo: bool) -> Result<(), Box<dyn Error>> {
     args.next();
     match args.len() {
         2.. => Err("Uso: rjox <script>".into()),
         1 => Ok(run_file(
-            lox,
             args.next().expect("No se ha encontrado el archivo"),
+            fallo,
         )?),
-        _ => Ok(run_prompt(lox)?),
+        _ => Ok(run_prompt(fallo)?),
     }
 }
 
-fn run_file(lox: Lox, file_path: String) -> Result<(), Box<dyn Error>> {
+fn run_file(file_path: String, fallo: bool) -> Result<(), Box<dyn Error>> {
     let mut content = fs::read_to_string(file_path)?;
-    run(&mut content);
-    if lox.had_error {
+    run(&mut content, &fallo);
+    if fallo {
         return Err("Existe un error en el contenido".into());
     }
     Ok(())
 }
 
-fn run(content: &mut str) {
+fn run(content: &mut str, fallo: &bool) {
     let mut scanner = Scanner::new(String::from(content));
-    let tokens = scanner.scan_tokens();
+    let tokens = scanner.scan_tokens(*fallo);
+    dbg!("{}", &tokens);
     for token in tokens {
-        dbg!("{:?}", &token);
+        dbg!("{}", token);
     }
 }
 
-fn run_prompt(mut lox: Lox) -> Result<(), Box<dyn Error>> {
+fn run_prompt(mut fallo: bool) -> Result<(), Box<dyn Error>> {
     loop {
         print_prompt();
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer)?;
         if buffer.is_empty() {
-            break;
+            break
         }
-        run(&mut buffer);
-        lox.had_error = false;
+        run(&mut buffer, &fallo);
+        fallo = false;
     }
     Ok(())
 }
@@ -60,13 +57,9 @@ fn print_prompt() {
     io::stdout().flush().unwrap();
 }
 
-fn report(mut lox: Lox, line: u32, place: String, message: String) {
+fn report_error (line: usize, place: String, message: String, fallo: &mut bool) {
     eprintln!("[{line}] | Error {place}: {message}");
-    lox.had_error = true;
-}
-
-fn error(lox: Lox, line: u32, message: String) {
-    report(lox, line, String::from(""), message);
+    *fallo = true;
 }
 
 // -----------------------------------------------------------------------------------------
@@ -103,10 +96,7 @@ pub enum TokenType {
     Else,
     False,
     Fun,
-    For,
-    If,
-    Nil,
-    Or,
+    For, If, Nil, Or,
     Print,
     Return,
     Super,
@@ -152,10 +142,6 @@ impl Token {
             line,
         }
     }
-
-    pub fn to_string(&self) {
-        format!("{:?} {:?} {:?}", self.token_type, self.lexeme, self.literal);
-    }
 }
 
 pub struct Scanner {
@@ -177,10 +163,10 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Vec<Token> {
+    pub fn scan_tokens(&mut self, mut fallo: bool) -> Vec<Token> {
         while self.source.len() > self.current {
             self.start = self.current;
-            self.scan_token();
+            self.scan_token(&mut fallo);
         }
 
         self.tokens.push(Token {
@@ -189,13 +175,13 @@ impl Scanner {
             literal: None,
             line: self.line,
         });
-        let tokens = self.tokens.clone();
-        return tokens;
+
+        self.tokens.clone()
     }
 
-    fn scan_token(&mut self) {
+    fn scan_token(&mut self, fallo: &mut bool) {
         let chars = self.source.chars().collect::<Vec<_>>();
-        for char in chars {
+        for char in &chars {
             self.current += 1;
             match char {
                 '(' => self.add_token(TokenType::LeftParen),
@@ -208,7 +194,53 @@ impl Scanner {
                 '+' => self.add_token(TokenType::Plus),
                 ';' => self.add_token(TokenType::Semicolon),
                 '*' => self.add_token(TokenType::Star),
-                _ => (),
+                '!' => {
+                    let c = if self.check('=') {
+                        TokenType::BangEqual
+                    } else {
+                        TokenType::Bang
+                    };
+                    self.add_token(c);
+                },
+                '=' => {
+                    let c = if self.check('=') {
+                        TokenType::EqualEqual
+                    } else {
+                        TokenType::Equal
+                    };
+                    self.add_token(c);
+                }
+                '<' => {
+                    let c = if self.check('=') {
+                        TokenType::LessEqual
+                    } else {
+                        TokenType::Less
+                    };
+                    self.add_token(c);
+                }
+                '>' => {
+                    let c = if self.check('=') {
+                        TokenType::GreaterEqual
+                    } else {
+                        TokenType::Greater
+                    };
+                    self.add_token(c);
+                }
+                '/' => {
+                    if self.check('/') {
+                        while self.peek() != '\n' && self.source.len() > self.current {
+                            self.current += 1;
+                            let _ = chars[self.current];
+                        }
+                    } else {
+                        self.add_token(TokenType::Slash);
+                    };
+                }
+                ' ' => (),
+                '\r' => (),
+                '\t' => (),
+                '\n' => self.line += 1,
+                _ => report_error(self.line, String::from(""), String::from("Caracter desconocido"), fallo),
             }
         }
     }
@@ -225,5 +257,26 @@ impl Scanner {
             literal,
             line: self.line,
         })
+    }
+
+    fn check(&mut self, expected: char) -> bool {
+        if self.source.len() <= self.current {
+            return false;
+        }
+        let chars = self.source.chars().collect::<Vec<_>>();
+        if chars[self.current] != expected {
+            return false;
+        }
+
+        self.current += 1;
+        true
+    }
+
+    fn peek(&self) -> char {
+        if self.source.len() <= self.current {
+            return '\0';
+        }
+        let chars = self.source.chars().collect::<Vec<_>>();
+        chars[self.current]
     }
 }
