@@ -301,7 +301,7 @@ impl Scanner {
             }
         }
 
-        let string: String = vec[self.start..=self.current].iter().collect();
+        let string: String = vec[self.start..self.current].iter().collect();
         let number = string
             .trim()
             .parse::<f64>()
@@ -338,7 +338,7 @@ impl Scanner {
     }
 
     fn add_token_literal(&mut self, token_type: TokenType, literal: Option<Literal>) {
-        let text = &self.source[self.start..=self.current];
+        let text = &self.source[self.start..self.current];
         self.tokens.push(Token {
             token_type,
             lexeme: text.to_string(),
@@ -378,7 +378,7 @@ impl Scanner {
             let _ = vec[self.current];
             self.current += 1;
         }
-        let binding = vec[self.start..=self.current].iter().collect::<String>();
+        let binding = vec[self.start..self.current].iter().collect::<String>();
         let text = binding.trim();
 
         match self.keywords.get(text) {
