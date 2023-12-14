@@ -1,5 +1,6 @@
 use colored::Colorize;
 use std::{
+    collections::hash_map::HashMap,
     env::Args,
     error::Error,
     fmt::Debug,
@@ -110,16 +111,15 @@ pub enum TokenType {
     EOF,
 }
 
+// #[derive(Debug, Clone)]
+// pub enum Literal {
+//     Value(Option<LiteralDef>),
+// }
 #[derive(Debug, Clone)]
 pub enum Literal {
-    Value(Option<LiteralDef>),
-}
-
-#[derive(Debug, Clone)]
-pub enum LiteralDef {
     String(String),
-    Float(f32),
-    Integer(u32),
+    Number(f64),
+    None,
 }
 
 #[derive(Debug, Clone)]
@@ -146,12 +146,34 @@ impl Token {
     }
 }
 
+fn load_keywords() -> HashMap<String, TokenType> {
+    let mut keywords = HashMap::new();
+    keywords.insert("and".to_string(), TokenType::And);
+    keywords.insert("class".to_string(), TokenType::Class);
+    keywords.insert("else".to_string(), TokenType::Else);
+    keywords.insert("false".to_string(), TokenType::False);
+    keywords.insert("for".to_string(), TokenType::For);
+    keywords.insert("fun".to_string(), TokenType::Fun);
+    keywords.insert("if".to_string(), TokenType::If);
+    keywords.insert("nil".to_string(), TokenType::Nil);
+    keywords.insert("or".to_string(), TokenType::Or);
+    keywords.insert("print".to_string(), TokenType::Print);
+    keywords.insert("return".to_string(), TokenType::Return);
+    keywords.insert("super".to_string(), TokenType::Super);
+    keywords.insert("this".to_string(), TokenType::This);
+    keywords.insert("true".to_string(), TokenType::True);
+    keywords.insert("var".to_string(), TokenType::Var);
+    keywords.insert("while".to_string(), TokenType::While);
+    keywords
+}
+
 pub struct Scanner {
     source: String,
     tokens: Vec<Token>,
     start: usize,
     current: usize,
     line: usize,
+    keywords: HashMap<String, TokenType>,
 }
 
 impl Scanner {
@@ -162,6 +184,7 @@ impl Scanner {
             start: 0,
             current: 0,
             line: 1,
+            keywords: load_keywords(),
         }
     }
 
@@ -230,7 +253,7 @@ impl Scanner {
             }
             '/' => {
                 if self.check('/', &chars) {
-                    while self.peek() != '\n' && self.source.len() > self.current {
+                    while self.peek(&chars) != '\n' && self.source.len() > self.current {
                         let _ = chars[self.current];
                         self.current += 1;
                     }
@@ -242,13 +265,72 @@ impl Scanner {
             '\r' => (),
             '\t' => (),
             '\n' => self.line += 1,
-            _ => report_error(
+            '"' => self.handle_string(&chars, fallo),
+            '0'..='9' => self.handle_number(&chars),
+            'o' => {
+                if self.check('r', &chars) {
+                    self.add_token(TokenType::Or)
+                }
+            }
+            _ => {
+                if c.is_alphabetic() || c == '_' {
+                    self.identifier(&chars)
+                } else {
+                    report_error(
+                        self.line,
+                        String::from(""),
+                        String::from("Caracter desconocido"),
+                        fallo,
+                    )
+                }
+            }
+        }
+    }
+
+    fn handle_number(&mut self, vec: &[char]) {
+        while self.peek(vec).is_ascii_digit() {
+            let _ = vec[self.current];
+            self.current += 1;
+        }
+        if self.peek(vec) == '.' && self.peek_next(vec).is_ascii_digit() {
+            let _ = vec[self.current];
+            self.current += 1;
+            while self.peek(vec).is_ascii_digit() {
+                let _ = vec[self.current];
+                self.current += 1;
+            }
+        }
+
+        let string: String = vec[self.start..=self.current].iter().collect();
+        let number = string
+            .trim()
+            .parse::<f64>()
+            .expect("La conversión de string a float ha fallado");
+        self.add_token_literal(TokenType::Number, Some(Literal::Number(number)))
+    }
+
+    fn handle_string(&mut self, vec: &[char], fallo: &mut bool) {
+        while self.peek(vec) != '"' && self.source.len() > self.current {
+            if self.peek(vec) == '\n' {
+                self.line += 1;
+            }
+            let _ = vec[self.current];
+            self.current += 1;
+        }
+        if self.source.len() <= self.current {
+            report_error(
                 self.line,
                 String::from(""),
-                String::from("Caracter desconocido"),
+                String::from("String sin cerrar"),
                 fallo,
-            ),
+            );
+            return;
         }
+        let _ = vec[self.current];
+        self.current += 1;
+
+        let value = &self.source[self.start + 1..self.current - 1];
+        self.add_token_literal(TokenType::String, Some(Literal::String(value.to_string())));
     }
 
     fn add_token(&mut self, token_type: TokenType) {
@@ -265,7 +347,7 @@ impl Scanner {
         })
     }
 
-    fn check(&mut self, expected: char, vec: &Vec<char>) -> bool {
+    fn check(&mut self, expected: char, vec: &[char]) -> bool {
         if self.source.len() <= self.current {
             return false;
         }
@@ -277,11 +359,31 @@ impl Scanner {
         true
     }
 
-    fn peek(&self) -> char {
+    fn peek(&self, vec: &[char]) -> char {
         if self.source.len() <= self.current {
             return '\0';
         }
-        let chars = self.source.chars().collect::<Vec<_>>();
-        chars[self.current]
+        vec[self.current]
+    }
+
+    fn peek_next(&self, vec: &[char]) -> char {
+        if self.current + 1 >= self.source.len() {
+            return '\0';
+        }
+        vec[self.current + 1]
+    }
+
+    fn identifier(&mut self, vec: &[char]) {
+        while self.peek(vec).is_alphanumeric() || self.peek(vec) == '_' {
+            let _ = vec[self.current];
+            self.current += 1;
+        }
+        let binding = vec[self.start..=self.current].iter().collect::<String>();
+        let text = binding.trim();
+
+        match self.keywords.get(text) {
+            Some(t) => self.add_token(t.clone()),
+            None => self.add_token(TokenType::Identifier),
+        };
     }
 }
