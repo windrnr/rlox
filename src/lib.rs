@@ -32,7 +32,6 @@ fn run_file(file_path: String, fallo: bool) -> Result<(), Box<dyn Error>> {
 fn run(content: &mut str, fallo: &bool) {
     let mut scanner = Scanner::new(String::from(content));
     let tokens = scanner.scan_tokens(*fallo);
-    dbg!("{}", &tokens);
     for token in tokens {
         dbg!("{}", token);
     }
@@ -44,7 +43,7 @@ fn run_prompt(mut fallo: bool) -> Result<(), Box<dyn Error>> {
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer)?;
         if buffer.is_empty() {
-            break
+            break;
         }
         run(&mut buffer, &fallo);
         fallo = false;
@@ -57,7 +56,7 @@ fn print_prompt() {
     io::stdout().flush().unwrap();
 }
 
-fn report_error (line: usize, place: String, message: String, fallo: &mut bool) {
+fn report_error(line: usize, place: String, message: String, fallo: &mut bool) {
     eprintln!("[{line}] | Error {place}: {message}");
     *fallo = true;
 }
@@ -96,7 +95,10 @@ pub enum TokenType {
     Else,
     False,
     Fun,
-    For, If, Nil, Or,
+    For,
+    If,
+    Nil,
+    Or,
     Print,
     Return,
     Super,
@@ -181,67 +183,71 @@ impl Scanner {
 
     fn scan_token(&mut self, fallo: &mut bool) {
         let chars = self.source.chars().collect::<Vec<_>>();
-        for char in &chars {
-            self.current += 1;
-            match char {
-                '(' => self.add_token(TokenType::LeftParen),
-                ')' => self.add_token(TokenType::RightParen),
-                '{' => self.add_token(TokenType::LeftBrace),
-                '}' => self.add_token(TokenType::RightBrace),
-                ',' => self.add_token(TokenType::Comma),
-                '.' => self.add_token(TokenType::Dot),
-                '-' => self.add_token(TokenType::Minus),
-                '+' => self.add_token(TokenType::Plus),
-                ';' => self.add_token(TokenType::Semicolon),
-                '*' => self.add_token(TokenType::Star),
-                '!' => {
-                    let c = if self.check('=') {
-                        TokenType::BangEqual
-                    } else {
-                        TokenType::Bang
-                    };
-                    self.add_token(c);
-                },
-                '=' => {
-                    let c = if self.check('=') {
-                        TokenType::EqualEqual
-                    } else {
-                        TokenType::Equal
-                    };
-                    self.add_token(c);
-                }
-                '<' => {
-                    let c = if self.check('=') {
-                        TokenType::LessEqual
-                    } else {
-                        TokenType::Less
-                    };
-                    self.add_token(c);
-                }
-                '>' => {
-                    let c = if self.check('=') {
-                        TokenType::GreaterEqual
-                    } else {
-                        TokenType::Greater
-                    };
-                    self.add_token(c);
-                }
-                '/' => {
-                    if self.check('/') {
-                        while self.peek() != '\n' && self.source.len() > self.current {
-                            self.current += 1;
-                            let _ = chars[self.current];
-                        }
-                    } else {
-                        self.add_token(TokenType::Slash);
-                    };
-                }
-                ' ' => (),
-                '\r' => (),
-                '\t' => (),
-                '\n' => self.line += 1,
-                _ => report_error(self.line, String::from(""), String::from("Caracter desconocido"), fallo),
+        let c = chars[self.current];
+        self.current += 1;
+        match c {
+            '(' => self.add_token(TokenType::LeftParen),
+            ')' => self.add_token(TokenType::RightParen),
+            '{' => self.add_token(TokenType::LeftBrace),
+            '}' => self.add_token(TokenType::RightBrace),
+            ',' => self.add_token(TokenType::Comma),
+            '.' => self.add_token(TokenType::Dot),
+            '-' => self.add_token(TokenType::Minus),
+            '+' => self.add_token(TokenType::Plus),
+            ';' => self.add_token(TokenType::Semicolon),
+            '*' => self.add_token(TokenType::Star),
+            '!' => {
+                let c = if self.check('=', &chars) {
+                    TokenType::BangEqual
+                } else {
+                    TokenType::Bang
+                };
+                self.add_token(c);
             }
+            '=' => {
+                let c = if self.check('=', &chars) {
+                    TokenType::EqualEqual
+                } else {
+                    TokenType::Equal
+                };
+                self.add_token(c);
+            }
+            '<' => {
+                let c = if self.check('=', &chars) {
+                    TokenType::LessEqual
+                } else {
+                    TokenType::Less
+                };
+                self.add_token(c);
+            }
+            '>' => {
+                let c = if self.check('=', &chars) {
+                    TokenType::GreaterEqual
+                } else {
+                    TokenType::Greater
+                };
+                self.add_token(c);
+            }
+            '/' => {
+                if self.check('/', &chars) {
+                    while self.peek() != '\n' && self.source.len() > self.current {
+                        let _ = chars[self.current];
+                        self.current += 1;
+                    }
+                } else {
+                    self.add_token(TokenType::Slash);
+                };
+            }
+            ' ' => (),
+            '\r' => (),
+            '\t' => (),
+            '\n' => self.line += 1,
+            _ => report_error(
+                self.line,
+                String::from(""),
+                String::from("Caracter desconocido"),
+                fallo,
+            ),
         }
     }
 
@@ -259,12 +265,11 @@ impl Scanner {
         })
     }
 
-    fn check(&mut self, expected: char) -> bool {
+    fn check(&mut self, expected: char, vec: &Vec<char>) -> bool {
         if self.source.len() <= self.current {
             return false;
         }
-        let chars = self.source.chars().collect::<Vec<_>>();
-        if chars[self.current] != expected {
+        if vec[self.current] != expected {
             return false;
         }
 
