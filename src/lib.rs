@@ -111,22 +111,20 @@ pub enum TokenType {
     EOF,
 }
 
-// #[derive(Debug, Clone)]
-// pub enum Literal {
-//     Value(Option<LiteralDef>),
-// }
 #[derive(Debug, Clone)]
 pub enum Literal {
     String(String),
     Number(f64),
+    Boolean(bool),
     None,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Token {
     token_type: TokenType,
     lexeme: String,
-    literal: Option<Literal>,
+    literal: Literal,
     line: usize,
 }
 
@@ -134,7 +132,7 @@ impl Token {
     pub fn new(
         token_type: TokenType,
         lexeme: String,
-        literal: Option<Literal>,
+        literal: Literal,
         line: usize,
     ) -> Self {
         Token {
@@ -197,7 +195,7 @@ impl Scanner {
         self.tokens.push(Token {
             token_type: TokenType::EOF,
             lexeme: String::from(""),
-            literal: None,
+            literal: Literal::None,
             line: self.line,
         });
 
@@ -267,11 +265,6 @@ impl Scanner {
             '\n' => self.line += 1,
             '"' => self.handle_string(&chars, fallo),
             '0'..='9' => self.handle_number(&chars),
-            'o' => {
-                if self.check('r', &chars) {
-                    self.add_token(TokenType::Or)
-                }
-            }
             _ => {
                 if c.is_alphabetic() || c == '_' {
                     self.identifier(&chars)
@@ -306,7 +299,7 @@ impl Scanner {
             .trim()
             .parse::<f64>()
             .expect("La conversión de string a float ha fallado");
-        self.add_token_literal(TokenType::Number, Some(Literal::Number(number)))
+        self.add_token_literal(TokenType::Number, Literal::Number(number))
     }
 
     fn handle_string(&mut self, vec: &[char], fallo: &mut bool) {
@@ -329,15 +322,15 @@ impl Scanner {
         let _ = vec[self.current];
         self.current += 1;
 
-        let value = &self.source[self.start + 1..self.current - 1];
-        self.add_token_literal(TokenType::String, Some(Literal::String(value.to_string())));
+        let text = &self.source[self.start + 1..self.current - 1].trim();
+        self.add_token_literal(TokenType::String, Literal::String(text.to_string()));
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_literal(token_type, None);
+        self.add_token_literal(token_type, Literal::None);
     }
 
-    fn add_token_literal(&mut self, token_type: TokenType, literal: Option<Literal>) {
+    fn add_token_literal(&mut self, token_type: TokenType, literal: Literal) {
         let text = &self.source[self.start..self.current];
         self.tokens.push(Token {
             token_type,
@@ -387,3 +380,21 @@ impl Scanner {
         };
     }
 }
+
+
+
+//-----------------------------------------------------------------------------------------------------------------
+
+// trait Expr {}
+
+// struct Binary {
+//     left: Box<dyn Expr>,
+//     operator: Token,
+//     right: Box<dyn Expr>,
+// }
+
+// impl Binary {
+//     fn new(&self, left: Box<dyn Expr>, operator: Token, right: Box<dyn Expr>) -> Self {
+//         Binary { left, operator, right}
+//     }
+// }
