@@ -1,4 +1,6 @@
+mod expr;
 use colored::Colorize;
+use expr::{Expr, Visitor};
 use std::{
     collections::hash_map::HashMap,
     env::Args,
@@ -122,19 +124,14 @@ pub enum Literal {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    literal: Literal,
-    line: usize,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub literal: Literal,
+    pub line: usize,
 }
 
 impl Token {
-    pub fn new(
-        token_type: TokenType,
-        lexeme: String,
-        literal: Literal,
-        line: usize,
-    ) -> Self {
+    pub fn new(token_type: TokenType, lexeme: String, literal: Literal, line: usize) -> Self {
         Token {
             token_type,
             lexeme,
@@ -381,20 +378,61 @@ impl Scanner {
     }
 }
 
-
-
 //-----------------------------------------------------------------------------------------------------------------
 
-// trait Expr {}
+pub struct AstPrinter {}
 
-// struct Binary {
-//     left: Box<dyn Expr>,
-//     operator: Token,
-//     right: Box<dyn Expr>,
-// }
+impl AstPrinter {
+    pub fn new() -> Self {
+        AstPrinter {}
+    }
 
-// impl Binary {
-//     fn new(&self, left: Box<dyn Expr>, operator: Token, right: Box<dyn Expr>) -> Self {
-//         Binary { left, operator, right}
-//     }
-// }
+    fn print(&mut self, expr: Box<dyn Expr>) -> expr::VisitorReturnValues {
+        expr.accept(self)
+    }
+
+    fn parenthesize(&mut self, name: &str, expr: &Box<dyn Expr>) -> String {
+        let mut result = format!("({name}");
+        let expr::VisitorReturnValues::String(inner) = expr.accept(self);
+        result.push_str(&inner);
+        result.push_str(") ");
+        result
+    }
+
+    pub fn execute(self) {
+        let expression = expr::Unary::new(
+            Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
+            Box::new(expr::Unary::new(
+                Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
+                Box::new(expr::Literal::new(Literal::Number(123.0))),
+                ))
+        );
+
+        let mut printer = AstPrinter::new();
+        let a = printer.print(Box::new(expression));
+        dbg!("{}",a);
+    }
+}
+
+impl Visitor for AstPrinter {
+    fn visit_unary_expr(&mut self, expr: &expr::Unary) -> expr::VisitorReturnValues {
+        expr::VisitorReturnValues::String(
+            self.parenthesize(expr.operator.lexeme.as_str(), &expr.right),
+        )
+    }
+    fn visit_binary_expr(&mut self, _expr: &expr::Binary) -> expr::VisitorReturnValues {
+        todo!()
+    }
+    fn visit_literal_expr(&mut self, expr: &expr::Literal) -> expr::VisitorReturnValues {
+        let a = &expr.value;
+        match a {
+            Literal::None => expr::VisitorReturnValues::String("nil".to_string()),
+            Literal::String(a) => expr::VisitorReturnValues::String(a.to_string()),
+            Literal::Number(a) => expr::VisitorReturnValues::String(a.to_string()),
+            _ => expr::VisitorReturnValues::String("ACA ALGO ANDA MAL".to_string()),
+        }
+    }
+    fn visit_grouping_expr(&mut self, expr: &expr::Grouping) -> expr::VisitorReturnValues {
+        expr::VisitorReturnValues::String(self.parenthesize("group", &expr.expression))
+    }
+}
