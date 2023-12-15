@@ -387,52 +387,74 @@ impl AstPrinter {
         AstPrinter {}
     }
 
-    fn print(&mut self, expr: Box<dyn Expr>) -> expr::VisitorReturnValues {
-        expr.accept(self)
+    pub fn print(&mut self, expr: Box<dyn Expr>) {
+        match expr.accept(self) {
+            Literal::String(str) => println!("{str}"),
+            _ => ()
+        }
     }
 
-    fn parenthesize(&mut self, name: &str, expr: &Box<dyn Expr>) -> String {
+    fn parenthesize(&mut self, name: &str, exprs: Vec<&dyn Expr>) -> Option<String> {
         let mut result = format!("({name}");
-        let expr::VisitorReturnValues::String(inner) = expr.accept(self);
-        result.push_str(&inner);
-        result.push_str(") ");
-        result
+
+        for expr in exprs {
+            match expr.accept(self) {
+                Literal::String(inner) => {
+                    result.push_str(&inner);
+                    result.push_str(" ");
+                }
+                _ => return None,
+            }
+        }
+        result.push_str(")");
+        Some(result)
     }
 
     pub fn execute(self) {
-        let expression = expr::Unary::new(
-            Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
-            Box::new(expr::Unary::new(
-                Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
-                Box::new(expr::Literal::new(Literal::Number(123.0))),
-                ))
-        );
+        let expression = expr::Binary::new(
+            Box::new(
+                expr::Unary::new(
+                    Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
+                    Box::new(expr::Literal::new(Literal::Number(123.0)))
+                )
+            ),
 
+            Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
+
+            Box::new(
+                expr::Grouping::new(
+                    Box::new(
+                        expr::Literal::new(Literal::Number(45.67))
+                    )
+                )
+            ),
+        );
+        
         let mut printer = AstPrinter::new();
-        let a = printer.print(Box::new(expression));
-        dbg!("{}",a);
+        printer.print(Box::new(expression));
     }
 }
 
 impl Visitor for AstPrinter {
-    fn visit_unary_expr(&mut self, expr: &expr::Unary) -> expr::VisitorReturnValues {
-        expr::VisitorReturnValues::String(
-            self.parenthesize(expr.operator.lexeme.as_str(), &expr.right),
+    fn visit_unary_expr(&mut self, expr: &expr::Unary) -> Literal {
+        Literal::String(
+            self.parenthesize(expr.operator.lexeme.as_str(), expr.children()).unwrap(),
         )
     }
-    fn visit_binary_expr(&mut self, _expr: &expr::Binary) -> expr::VisitorReturnValues {
-        todo!()
+    fn visit_binary_expr(&mut self, expr: &expr::Binary) -> Literal {
+        Literal::String(
+            self.parenthesize(expr.operator.lexeme.as_str(), expr.children()).unwrap(),
+        )
     }
-    fn visit_literal_expr(&mut self, expr: &expr::Literal) -> expr::VisitorReturnValues {
-        let a = &expr.value;
-        match a {
-            Literal::None => expr::VisitorReturnValues::String("nil".to_string()),
-            Literal::String(a) => expr::VisitorReturnValues::String(a.to_string()),
-            Literal::Number(a) => expr::VisitorReturnValues::String(a.to_string()),
-            _ => expr::VisitorReturnValues::String("ACA ALGO ANDA MAL".to_string()),
+    fn visit_literal_expr(&mut self, expr: &expr::Literal) -> Literal{
+        match &expr.value {
+            Literal::None => Literal::String("nil".to_string()),
+            Literal::String(a) => Literal::String(a.to_string()),
+            Literal::Number(a) => Literal::String(a.to_string()),
+            Literal::Boolean(a) => Literal::String(a.to_string()),
         }
     }
-    fn visit_grouping_expr(&mut self, expr: &expr::Grouping) -> expr::VisitorReturnValues {
-        expr::VisitorReturnValues::String(self.parenthesize("group", &expr.expression))
+    fn visit_grouping_expr(&mut self, expr: &expr::Grouping) -> Literal{
+        Literal::String(self.parenthesize("group", expr.children()).unwrap())
     }
 }

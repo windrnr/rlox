@@ -1,28 +1,22 @@
-use crate::Token;
-
-#[derive(Debug)]
-pub enum VisitorReturnValues {
-    String(String),
-}
-
 pub trait Visitor {
-    fn visit_binary_expr(&mut self, expr: &Binary) -> VisitorReturnValues;
-    fn visit_grouping_expr(&mut self, expr: &Grouping) -> VisitorReturnValues;
-    fn visit_literal_expr(&mut self, expr: &Literal) -> VisitorReturnValues;
-    fn visit_unary_expr(&mut self, expr: &Unary) -> VisitorReturnValues;
+    fn visit_binary_expr(&mut self, expr: &Binary) -> crate::Literal;
+    fn visit_grouping_expr(&mut self, expr: &Grouping) -> crate::Literal;
+    fn visit_literal_expr(&mut self, expr: &Literal) -> crate::Literal;
+    fn visit_unary_expr(&mut self, expr: &Unary) -> crate::Literal;
 }
 
 pub trait Expr {
-    fn accept(&self, visitor: &mut dyn Visitor) -> VisitorReturnValues;
+    fn children(&self) -> Vec<&dyn Expr>;
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal;
 }
 
 pub struct Binary {
     pub left: Box<dyn Expr>,
-    pub operator: Token,
+    pub operator: crate::Token,
     pub right: Box<dyn Expr>,
 }
 impl Binary {
-    pub fn new(left: Box<dyn Expr>, operator: Token, right: Box<dyn Expr>) -> Self {
+    pub fn new(left: Box<dyn Expr>, operator: crate::Token, right: Box<dyn Expr>) -> Self {
         Binary {
             left,
             operator,
@@ -32,8 +26,12 @@ impl Binary {
 }
 
 impl Expr for Binary {
-    fn accept(&self, visitor: &mut dyn Visitor) -> VisitorReturnValues {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
         visitor.visit_binary_expr(self)
+    }
+
+    fn children(&self) -> Vec<&dyn Expr> {
+        vec![&*self.left, &*self.right]
     }
 }
 
@@ -47,8 +45,12 @@ impl Grouping {
 }
 
 impl Expr for Grouping {
-    fn accept(&self, visitor: &mut dyn Visitor) -> VisitorReturnValues {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
         visitor.visit_grouping_expr(self)
+    }
+
+    fn children(&self) -> Vec<&dyn Expr> {
+        vec![&*self.expression]
     }
 }
 
@@ -62,23 +64,31 @@ impl Literal {
 }
 
 impl Expr for Literal {
-    fn accept(&self, visitor: &mut dyn Visitor) -> VisitorReturnValues {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
         visitor.visit_literal_expr(self)
+    }
+
+    fn children(&self) -> Vec<&dyn Expr> {
+        vec![]
     }
 }
 
 pub struct Unary {
-    pub operator: Token,
+    pub operator: crate::Token,
     pub right: Box<dyn Expr>,
 }
 impl Unary {
-    pub fn new(operator: Token, right: Box<dyn Expr>) -> Self {
+    pub fn new(operator: crate::Token, right: Box<dyn Expr>) -> Self {
         Unary { operator, right }
     }
 }
 
 impl Expr for Unary {
-    fn accept(&self, visitor: &mut dyn Visitor) -> VisitorReturnValues {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
         visitor.visit_unary_expr(self)
+    }
+
+    fn children(&self) -> Vec<&dyn Expr> {
+        vec![&*self.right]
     }
 }
