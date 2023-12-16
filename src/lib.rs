@@ -11,36 +11,32 @@ use std::{
     usize,
 };
 
-pub fn start(mut args: Args, fallo: bool) -> Result<(), Box<dyn Error>> {
+pub fn start(mut args: Args) -> Result<(), Box<dyn Error>> {
     args.next();
     match args.len() {
         2.. => Err("Uso: rjox <script>".into()),
         1 => Ok(run_file(
             args.next().expect("No se ha encontrado el archivo"),
-            fallo,
         )?),
-        _ => Ok(run_prompt(fallo)?),
+        _ => Ok(run_prompt()?),
     }
 }
 
-fn run_file(file_path: String, fallo: bool) -> Result<(), Box<dyn Error>> {
+fn run_file(file_path: String) -> Result<(), Box<dyn Error>> {
     let mut content = fs::read_to_string(file_path)?;
-    run(&mut content, &fallo);
-    if fallo {
-        return Err("Existe un error en el contenido".into());
-    }
+    run(&mut content);
     Ok(())
 }
 
-fn run(content: &mut str, fallo: &bool) {
+fn run(content: &mut str) {
     let mut scanner = Scanner::new(String::from(content));
-    let tokens = scanner.scan_tokens(*fallo);
+    let tokens = scanner.scan_tokens();
     for token in tokens {
         dbg!("{}", token);
     }
 }
 
-fn run_prompt(mut fallo: bool) -> Result<(), Box<dyn Error>> {
+fn run_prompt() -> Result<(), Box<dyn Error>> {
     loop {
         print_prompt();
         let mut buffer = String::new();
@@ -48,8 +44,7 @@ fn run_prompt(mut fallo: bool) -> Result<(), Box<dyn Error>> {
         if buffer.is_empty() {
             break;
         }
-        run(&mut buffer, &fallo);
-        fallo = false;
+        run(&mut buffer);
     }
     Ok(())
 }
@@ -59,9 +54,9 @@ fn print_prompt() {
     io::stdout().flush().unwrap();
 }
 
-fn report_error(line: usize, place: String, message: String, fallo: &mut bool) {
+fn report_error(line: usize, place: String, message: String) {
     eprintln!("[{line}] | Error {place}: {message}");
-    *fallo = true;
+    std::process::exit(64);
 }
 
 // -----------------------------------------------------------------------------------------
@@ -183,10 +178,10 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(&mut self, mut fallo: bool) -> Vec<Token> {
+    pub fn scan_tokens(&mut self) -> Vec<Token> {
         while self.source.len() > self.current {
             self.start = self.current;
-            self.scan_token(&mut fallo);
+            self.scan_token();
         }
 
         self.tokens.push(Token {
@@ -199,7 +194,7 @@ impl Scanner {
         self.tokens.clone()
     }
 
-    fn scan_token(&mut self, fallo: &mut bool) {
+    fn scan_token(&mut self) {
         let chars = self.source.chars().collect::<Vec<_>>();
         let c = chars[self.current];
         self.current += 1;
@@ -260,7 +255,7 @@ impl Scanner {
             '\r' => (),
             '\t' => (),
             '\n' => self.line += 1,
-            '"' => self.handle_string(&chars, fallo),
+            '"' => self.handle_string(&chars),
             '0'..='9' => self.handle_number(&chars),
             _ => {
                 if c.is_alphabetic() || c == '_' {
@@ -270,7 +265,6 @@ impl Scanner {
                         self.line,
                         String::from(""),
                         String::from("Caracter desconocido"),
-                        fallo,
                     )
                 }
             }
@@ -299,7 +293,7 @@ impl Scanner {
         self.add_token_literal(TokenType::Number, Literal::Number(number))
     }
 
-    fn handle_string(&mut self, vec: &[char], fallo: &mut bool) {
+    fn handle_string(&mut self, vec: &[char]) {
         while self.peek(vec) != '"' && self.source.len() > self.current {
             if self.peek(vec) == '\n' {
                 self.line += 1;
@@ -312,7 +306,6 @@ impl Scanner {
                 self.line,
                 String::from(""),
                 String::from("String sin cerrar"),
-                fallo,
             );
             return;
         }
@@ -408,30 +401,6 @@ impl AstPrinter {
         }
         result.push_str(")");
         Some(result)
-    }
-
-    pub fn execute(self) {
-        let expression = expr::Binary::new(
-            Box::new(
-                expr::Unary::new(
-                    Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
-                    Box::new(expr::Literal::new(Literal::Number(123.0)))
-                )
-            ),
-
-            Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
-
-            Box::new(
-                expr::Grouping::new(
-                    Box::new(
-                        expr::Literal::new(Literal::Number(45.67))
-                    )
-                )
-            ),
-        );
-        
-        let mut printer = AstPrinter::new();
-        printer.print(Box::new(expression));
     }
 }
 
