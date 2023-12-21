@@ -1,13 +1,13 @@
 pub trait Visitor {
-    fn visit_binary_expr(&mut self, expr: &Binary) -> crate::Literal;
-    fn visit_grouping_expr(&mut self, expr: &Grouping) -> crate::Literal;
-    fn visit_literal_expr(&mut self, expr: &Literal) -> crate::Literal;
-    fn visit_unary_expr(&mut self, expr: &Unary) -> crate::Literal;
+    fn visit_binary_expr(&mut self, expr: &Binary) -> crate::Value;
+    fn visit_grouping_expr(&mut self, expr: &Grouping) -> crate::Value;
+    fn visit_literal_expr(&mut self, expr: &Literal) -> crate::Value;
+    fn visit_unary_expr(&mut self, expr: &Unary) -> crate::Value;
 }
 
 pub trait Expr {
     fn children(&self) -> Vec<&dyn Expr>;
-    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal;
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value;
 }
 
 pub struct Binary {
@@ -26,7 +26,7 @@ impl Binary {
 }
 
 impl Expr for Binary {
-    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
         visitor.visit_binary_expr(self)
     }
 
@@ -45,7 +45,7 @@ impl Grouping {
 }
 
 impl Expr for Grouping {
-    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
         visitor.visit_grouping_expr(self)
     }
 
@@ -55,16 +55,16 @@ impl Expr for Grouping {
 }
 
 pub struct Literal {
-    pub value: crate::Literal,
+    pub value: crate::Value,
 }
 impl Literal {
-    pub fn new(value: crate::Literal) -> Self {
+    pub fn new(value: crate::Value) -> Self {
         Literal { value }
     }
 }
 
 impl Expr for Literal {
-    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
         visitor.visit_literal_expr(self)
     }
 
@@ -84,7 +84,7 @@ impl Unary {
 }
 
 impl Expr for Unary {
-    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Literal {
+    fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
         visitor.visit_unary_expr(self)
     }
 

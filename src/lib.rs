@@ -32,7 +32,8 @@ fn run(content: &mut str) {
     let mut scanner = Scanner::new(String::from(content));
     let tokens = scanner.scan_tokens();
     for token in tokens {
-        dbg!("{}", token);
+        // dbg!("{}", token);
+        println!("{}", token);
     }
 }
 
@@ -108,12 +109,76 @@ pub enum TokenType {
     EOF,
 }
 
+impl core::fmt::Display for TokenType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let token_str = match self {
+            TokenType::LeftParen => "LeftParen",
+            TokenType::RightParen => "RightParen",
+            TokenType::LeftBrace => "LeftBrace",
+            TokenType::RightBrace => "RightBrace",
+            TokenType::Comma => "Comma",
+            TokenType::Dot => "Dot",
+            TokenType::Minus => "Minus",
+            TokenType::Plus => "Plus",
+            TokenType::Semicolon => "Semicolon",
+            TokenType::Slash => "Slash",
+            TokenType::Star => "Star",
+
+            TokenType::Bang => "Bang",
+            TokenType::BangEqual => "BangEqual",
+            TokenType::Equal => "Equal",
+            TokenType::EqualEqual => "EqualEqual",
+            TokenType::Greater => "Greater",
+            TokenType::GreaterEqual => "GreaterEqual",
+            TokenType::Less => "Less",
+            TokenType::LessEqual => "LessEqual",
+
+            TokenType::Identifier => "Identifier",
+            TokenType::String => "String",
+            TokenType::Number => "Number",
+
+            TokenType::And => "And",
+            TokenType::Class => "Class",
+            TokenType::Else => "Else",
+            TokenType::False => "False",
+            TokenType::Fun => "Fun",
+            TokenType::For => "For",
+            TokenType::If => "If",
+            TokenType::Nil => "Nil",
+            TokenType::Or => "Or",
+            TokenType::Print => "Print",
+            TokenType::Return => "Return",
+            TokenType::Super => "Super",
+            TokenType::This => "This",
+            TokenType::True => "True",
+            TokenType::Var => "Var",
+            TokenType::While => "While",
+
+            TokenType::EOF => "EOF",
+        };
+        write!(f, "{}", token_str)
+    }
+}
+
 #[derive(Debug, Clone)]
-pub enum Literal {
+pub enum Value {
     String(String),
     Number(f64),
     Boolean(bool),
     None,
+}
+
+impl core::fmt::Display for Value {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let value_str = match self {
+            Self::String(s) => s.to_string(),
+            Self::Number(n) => n.to_string(),
+            Self::Boolean(b) => b.to_string(),
+            Self::None => "None".to_string(),
+        };
+
+        write!(f, "{}", value_str)
+    }
 }
 
 #[allow(dead_code)]
@@ -121,18 +186,28 @@ pub enum Literal {
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
-    pub literal: Literal,
+    pub literal: Value,
     pub line: usize,
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, literal: Literal, line: usize) -> Self {
+    pub fn new(token_type: TokenType, lexeme: String, literal: Value, line: usize) -> Self {
         Token {
             token_type,
             lexeme,
             literal,
             line,
         }
+    }
+}
+
+impl core::fmt::Display for Token {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "Token Type: {}\nLexeme: {}\nLiteral: {}\nLine: {}\n",
+            self.token_type, self.lexeme, self.literal, self.line
+        )
     }
 }
 
@@ -187,7 +262,7 @@ impl Scanner {
         self.tokens.push(Token {
             token_type: TokenType::EOF,
             lexeme: String::from(""),
-            literal: Literal::None,
+            literal: Value::None,
             line: self.line,
         });
 
@@ -290,7 +365,7 @@ impl Scanner {
             .trim()
             .parse::<f64>()
             .expect("La conversión de string a float ha fallado");
-        self.add_token_literal(TokenType::Number, Literal::Number(number))
+        self.add_token_literal(TokenType::Number, Value::Number(number))
     }
 
     fn handle_string(&mut self, vec: &[char]) {
@@ -313,14 +388,14 @@ impl Scanner {
         self.current += 1;
 
         let text = &self.source[self.start + 1..self.current - 1].trim();
-        self.add_token_literal(TokenType::String, Literal::String(text.to_string()));
+        self.add_token_literal(TokenType::String, Value::String(text.to_string()));
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_literal(token_type, Literal::None);
+        self.add_token_literal(token_type, Value::None);
     }
 
-    fn add_token_literal(&mut self, token_type: TokenType, literal: Literal) {
+    fn add_token_literal(&mut self, token_type: TokenType, literal: Value) {
         let text = &self.source[self.start..self.current];
         self.tokens.push(Token {
             token_type,
@@ -382,8 +457,8 @@ impl AstPrinter {
 
     pub fn print(&mut self, expr: Box<dyn Expr>) {
         match expr.accept(self) {
-            Literal::String(str) => println!("{str}"),
-            _ => ()
+            Value::String(str) => println!("{str}"),
+            _ => (),
         }
     }
 
@@ -392,7 +467,7 @@ impl AstPrinter {
 
         for expr in exprs {
             match expr.accept(self) {
-                Literal::String(inner) => {
+                Value::String(inner) => {
                     result.push_str(&inner);
                     result.push_str(" ");
                 }
@@ -405,25 +480,27 @@ impl AstPrinter {
 }
 
 impl Visitor for AstPrinter {
-    fn visit_unary_expr(&mut self, expr: &expr::Unary) -> Literal {
-        Literal::String(
-            self.parenthesize(expr.operator.lexeme.as_str(), expr.children()).unwrap(),
+    fn visit_unary_expr(&mut self, expr: &expr::Unary) -> Value {
+        Value::String(
+            self.parenthesize(expr.operator.lexeme.as_str(), expr.children())
+                .unwrap(),
         )
     }
-    fn visit_binary_expr(&mut self, expr: &expr::Binary) -> Literal {
-        Literal::String(
-            self.parenthesize(expr.operator.lexeme.as_str(), expr.children()).unwrap(),
+    fn visit_binary_expr(&mut self, expr: &expr::Binary) -> Value {
+        Value::String(
+            self.parenthesize(expr.operator.lexeme.as_str(), expr.children())
+                .unwrap(),
         )
     }
-    fn visit_literal_expr(&mut self, expr: &expr::Literal) -> Literal{
+    fn visit_literal_expr(&mut self, expr: &expr::Literal) -> Value {
         match &expr.value {
-            Literal::None => Literal::String("nil".to_string()),
-            Literal::String(a) => Literal::String(a.to_string()),
-            Literal::Number(a) => Literal::String(a.to_string()),
-            Literal::Boolean(a) => Literal::String(a.to_string()),
+            Value::None => Value::String("nil".to_string()),
+            Value::String(a) => Value::String(a.to_string()),
+            Value::Number(a) => Value::String(a.to_string()),
+            Value::Boolean(a) => Value::String(a.to_string()),
         }
     }
-    fn visit_grouping_expr(&mut self, expr: &expr::Grouping) -> Literal{
-        Literal::String(self.parenthesize("group", expr.children()).unwrap())
+    fn visit_grouping_expr(&mut self, expr: &expr::Grouping) -> Value {
+        Value::String(self.parenthesize("group", expr.children()).unwrap())
     }
 }
