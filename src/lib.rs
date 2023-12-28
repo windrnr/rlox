@@ -1,6 +1,6 @@
 mod expr;
+mod ast_printer;
 use colored::Colorize;
-// use expr::{Expr, Visitor};
 use std::{
     collections::hash_map::HashMap,
     env::Args,
@@ -14,7 +14,7 @@ use std::{
 pub fn start(mut args: Args) -> Result<(), Box<dyn Error>> {
     args.next();
     match args.len() {
-        2.. => Err("Uso: rjox <script>".into()),
+        2.. => Err("Uso: rlox <script>".into()),
         1 => Ok(run_file(
             args.next().expect("No se ha encontrado el archivo"),
         )?),
@@ -26,15 +26,6 @@ fn run_file(file_path: String) -> Result<(), Box<dyn Error>> {
     let mut content = fs::read_to_string(file_path)?;
     run(&mut content);
     Ok(())
-}
-
-fn run(content: &mut str) {
-    let mut scanner = Scanner::new(String::from(content));
-    let tokens = scanner.scan_tokens();
-    for token in tokens {
-        // dbg!("{}", token);
-        println!("{}", token);
-    }
 }
 
 fn run_prompt() -> Result<(), Box<dyn Error>> {
@@ -55,7 +46,15 @@ fn print_prompt() {
     io::stdout().flush().unwrap();
 }
 
-fn report_error(line: usize, place: String, message: String) {
+fn run(content: &mut str) {
+    let mut scanner = Scanner::new(content);
+    let tokens = scanner.scan_tokens();
+    for token in tokens {
+        println!("{}", token);
+    }
+}
+
+fn report_error(line: usize, place: &str, message: &str) {
     eprintln!("[{line}] | Error {place}: {message}");
     std::process::exit(64);
 }
@@ -183,16 +182,16 @@ impl core::fmt::Display for Value {
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Token {
+pub struct Token<'a> {
     pub token_type: TokenType,
-    pub lexeme: String,
+    pub lexeme: &'a str,
     pub literal: Value,
     pub line: usize,
 }
 
-impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, literal: Value, line: usize) -> Self {
-        Token {
+impl<'a> Token<'a> {
+    pub fn new(token_type: TokenType, lexeme: &'a str, literal: Value, line: usize) -> Self {
+        Self {
             token_type,
             lexeme,
             literal,
@@ -201,7 +200,7 @@ impl Token {
     }
 }
 
-impl core::fmt::Display for Token {
+impl<'a> core::fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
@@ -232,17 +231,17 @@ fn load_keywords() -> HashMap<String, TokenType> {
     keywords
 }
 
-pub struct Scanner {
-    source: String,
-    tokens: Vec<Token>,
+pub struct Scanner<'a> {
+    source: &'a str,
+    tokens: Vec<Token<'a>>,
     start: usize,
     current: usize,
     line: usize,
     keywords: HashMap<String, TokenType>,
 }
 
-impl Scanner {
-    pub fn new(source: String) -> Self {
+impl<'a> Scanner<'a> {
+    pub fn new(source: &'a str) -> Self {
         Scanner {
             source,
             tokens: Vec::new(),
@@ -253,7 +252,7 @@ impl Scanner {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Vec<Token> {
+    pub fn scan_tokens(&mut self) -> &[Token] {
         while self.source.len() > self.current {
             self.start = self.current;
             self.scan_token();
@@ -261,19 +260,20 @@ impl Scanner {
 
         self.tokens.push(Token {
             token_type: TokenType::EOF,
-            lexeme: String::from(""),
+            lexeme: "",
             literal: Value::None,
             line: self.line,
         });
 
-        self.tokens.clone()
+        &self.tokens[..]
     }
 
     fn scan_token(&mut self) {
-        let chars = self.source.chars().collect::<Vec<_>>();
-        let c = chars[self.current];
+        let content = self.source.chars().collect::<Vec<_>>();
+        let char = content[self.current];
         self.current += 1;
-        match c {
+
+        match char {
             '(' => self.add_token(TokenType::LeftParen),
             ')' => self.add_token(TokenType::RightParen),
             '{' => self.add_token(TokenType::LeftBrace),
@@ -285,7 +285,7 @@ impl Scanner {
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
             '!' => {
-                let c = if self.check('=', &chars) {
+                let c = if self.check('=', &content) {
                     TokenType::BangEqual
                 } else {
                     TokenType::Bang
@@ -293,7 +293,7 @@ impl Scanner {
                 self.add_token(c);
             }
             '=' => {
-                let c = if self.check('=', &chars) {
+                let c = if self.check('=', &content) {
                     TokenType::EqualEqual
                 } else {
                     TokenType::Equal
@@ -301,7 +301,7 @@ impl Scanner {
                 self.add_token(c);
             }
             '<' => {
-                let c = if self.check('=', &chars) {
+                let c = if self.check('=', &content) {
                     TokenType::LessEqual
                 } else {
                     TokenType::Less
@@ -309,7 +309,7 @@ impl Scanner {
                 self.add_token(c);
             }
             '>' => {
-                let c = if self.check('=', &chars) {
+                let c = if self.check('=', &content) {
                     TokenType::GreaterEqual
                 } else {
                     TokenType::Greater
@@ -317,9 +317,9 @@ impl Scanner {
                 self.add_token(c);
             }
             '/' => {
-                if self.check('/', &chars) {
-                    while self.peek(&chars) != '\n' && self.source.len() > self.current {
-                        let _ = chars[self.current];
+                if self.check('/', &content) {
+                    while self.peek(&content) != '\n' && self.source.len() > self.current {
+                        let _ = content[self.current];
                         self.current += 1;
                     }
                 } else {
@@ -330,16 +330,16 @@ impl Scanner {
             '\r' => (),
             '\t' => (),
             '\n' => self.line += 1,
-            '"' => self.handle_string(&chars),
-            '0'..='9' => self.handle_number(&chars),
+            '"' => self.handle_string(&content),
+            '0'..='9' => self.handle_number(&content),
             _ => {
-                if c.is_alphabetic() || c == '_' {
-                    self.identifier(&chars)
+                if char.is_alphabetic() || char == '_' {
+                    self.identifier(&content)
                 } else {
                     report_error(
                         self.line,
-                        String::from(""),
-                        String::from("Caracter desconocido"),
+                        "",
+                        "Caracter desconocido",
                     )
                 }
             }
@@ -377,11 +377,7 @@ impl Scanner {
             self.current += 1;
         }
         if self.source.len() <= self.current {
-            report_error(
-                self.line,
-                String::from(""),
-                String::from("String sin cerrar"),
-            );
+            report_error(self.line, "", "String sin cerrar");
             return;
         }
         let _ = vec[self.current];
@@ -399,7 +395,7 @@ impl Scanner {
         let text = &self.source[self.start..self.current];
         self.tokens.push(Token {
             token_type,
-            lexeme: text.to_string(),
+            lexeme: text,
             literal,
             line: self.line,
         })
@@ -446,61 +442,3 @@ impl Scanner {
     }
 }
 
-//-----------------------------------------------------------------------------------------------------------------
-
-// pub struct AstPrinter {}
-
-// impl AstPrinter {
-//     pub fn new() -> Self {
-//         AstPrinter {}
-//     }
-
-//     pub fn print(&mut self, expr: Box<dyn Expr>) {
-//         match expr.accept(self) {
-//             Value::String(str) => println!("{str}"),
-//             _ => (),
-//         }
-//     }
-
-//     fn parenthesize(&mut self, name: &str, exprs: Vec<&dyn Expr>) -> Option<String> {
-//         let mut result = format!("({name}");
-
-//         for expr in exprs {
-//             match expr.accept(self) {
-//                 Value::String(inner) => {
-//                     result.push_str(&inner);
-//                     result.push_str(" ");
-//                 }
-//                 _ => return None,
-//             }
-//         }
-//         result.push_str(")");
-//         Some(result)
-//     }
-// }
-
-// impl Visitor for AstPrinter {
-//     fn visit_unary_expr(&mut self, expr: &expr::Unary) -> Value {
-//         Value::String(
-//             self.parenthesize(expr.operator.lexeme.as_str(), expr.children())
-//                 .unwrap(),
-//         )
-//     }
-//     fn visit_binary_expr(&mut self, expr: &expr::Binary) -> Value {
-//         Value::String(
-//             self.parenthesize(expr.operator.lexeme.as_str(), expr.children())
-//                 .unwrap(),
-//         )
-//     }
-//     fn visit_literal_expr(&mut self, expr: &expr::Literal) -> Value {
-//         match &expr.value {
-//             Value::None => Value::String("nil".to_string()),
-//             Value::String(a) => Value::String(a.to_string()),
-//             Value::Number(a) => Value::String(a.to_string()),
-//             Value::Boolean(a) => Value::String(a.to_string()),
-//         }
-//     }
-//     fn visit_grouping_expr(&mut self, expr: &expr::Grouping) -> Value {
-//         Value::String(self.parenthesize("group", expr.children()).unwrap())
-//     }
-// }
