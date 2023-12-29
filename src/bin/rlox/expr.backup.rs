@@ -10,13 +10,13 @@ pub trait Expr {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value;
 }
 
-pub struct Binary<'a> {
+pub struct Binary {
     pub left: Box<dyn Expr>,
-    pub operator: crate::Token<'a>,
+    pub operator: crate::Token,
     pub right: Box<dyn Expr>,
 }
-impl<'a> Binary<'a> {
-    pub fn new(left: Box<dyn Expr>, operator: crate::Token<'a>, right: Box<dyn Expr>) -> Self {
+impl Binary {
+    pub fn new(left: Box<dyn Expr>, operator: crate::Token, right: Box<dyn Expr>) -> Self {
         Self {
             left,
             operator,
@@ -25,7 +25,7 @@ impl<'a> Binary<'a> {
     }
 }
 
-impl<'a> Expr for Binary<'a> {
+impl Expr for Binary {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
         visitor.visit_binary_expr(self)
     }
@@ -35,17 +35,17 @@ impl<'a> Expr for Binary<'a> {
     }
 }
 
-pub struct Grouping {
-    pub expression: Box<dyn Expr>,
+pub struct Grouping<'a> {
+    pub expression: &'a dyn Expr,
 }
 
-impl Grouping {
-    pub fn new(expression: Box<dyn Expr>) -> Self {
+impl<'a> Grouping<'a> {
+    pub fn new(expression: &'a dyn Expr) -> Self {
         Self { expression }
     }
 }
 
-impl Expr for Grouping {
+impl<'a> Expr for Grouping<'a> {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
         visitor.visit_grouping_expr(self)
     }
@@ -74,17 +74,17 @@ impl Expr for Literal {
     }
 }
 
-pub struct Unary<'a> {
-    pub operator: crate::Token<'a>,
+pub struct Unary {
+    pub operator: crate::Token,
     pub right: Box<dyn Expr>,
 }
-impl<'a> Unary<'a> {
-    pub fn new(operator: crate::Token<'a>, right: Box<dyn Expr>) -> Self {
+impl Unary {
+    pub fn new(operator: crate::Token, right: Box<dyn Expr>) -> Self {
         Unary { operator, right }
     }
 }
 
-impl<'a> Expr for Unary<'a> {
+impl Expr for Unary {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
         visitor.visit_unary_expr(self)
     }

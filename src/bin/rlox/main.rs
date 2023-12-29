@@ -1,5 +1,6 @@
 mod expr;
 mod ast_printer;
+use std::env;
 use colored::Colorize;
 use std::{
     collections::hash_map::HashMap,
@@ -10,6 +11,12 @@ use std::{
     io::{self, Write},
     usize,
 };
+
+fn main() {
+    if let Err(error) = start(env::args()) {
+        eprintln!("Error: {error}");
+    }
+}
 
 pub fn start(mut args: Args) -> Result<(), Box<dyn Error>> {
     args.next();
@@ -47,7 +54,7 @@ fn print_prompt() {
 }
 
 fn run(content: &mut str) {
-    let mut scanner = Scanner::new(content);
+    let mut scanner = Scanner::new(content.to_string());
     let tokens = scanner.scan_tokens();
     for token in tokens {
         println!("{}", token);
@@ -59,9 +66,12 @@ fn report_error(line: usize, place: &str, message: &str) {
     std::process::exit(64);
 }
 
+
+// -----------------------------------------------------------------------------------------
+// LEXER
 // -----------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     LeftParen,
     RightParen,
@@ -182,15 +192,15 @@ impl core::fmt::Display for Value {
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Token<'a> {
+pub struct Token {
     pub token_type: TokenType,
-    pub lexeme: &'a str,
+    pub lexeme: String,
     pub literal: Value,
     pub line: usize,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(token_type: TokenType, lexeme: &'a str, literal: Value, line: usize) -> Self {
+impl<'a> Token {
+    pub fn new(token_type: TokenType, lexeme: String, literal: Value, line: usize) -> Self {
         Self {
             token_type,
             lexeme,
@@ -200,7 +210,7 @@ impl<'a> Token<'a> {
     }
 }
 
-impl<'a> core::fmt::Display for Token<'a> {
+impl core::fmt::Display for Token {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
@@ -231,17 +241,17 @@ fn load_keywords() -> HashMap<String, TokenType> {
     keywords
 }
 
-pub struct Scanner<'a> {
-    source: &'a str,
-    tokens: Vec<Token<'a>>,
+pub struct Scanner {
+    source: String,
+    tokens: Vec<Token>,
     start: usize,
     current: usize,
     line: usize,
     keywords: HashMap<String, TokenType>,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl Scanner {
+    pub fn new(source: String) -> Self {
         Scanner {
             source,
             tokens: vec![],
@@ -260,7 +270,7 @@ impl<'a> Scanner<'a> {
 
         self.tokens.push(Token {
             token_type: TokenType::EOF,
-            lexeme: "",
+            lexeme: "".to_string(),
             literal: Value::None,
             line: self.line,
         });
@@ -360,7 +370,7 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        let string: String = vec[self.start..self.current].iter().collect();
+        let string = vec[self.start..self.current].iter().collect::<String>();
         let number = string
             .trim()
             .parse::<f64>()
@@ -395,7 +405,7 @@ impl<'a> Scanner<'a> {
         let lexeme = &self.source[self.start..self.current];
         self.tokens.push(Token {
             token_type,
-            lexeme,
+            lexeme: lexeme.to_string(),
             literal,
             line: self.line,
         })
@@ -441,4 +451,84 @@ impl<'a> Scanner<'a> {
         };
     }
 }
+// -----------------------------------------------------------------------------------------
+// Parser
+// -----------------------------------------------------------------------------------------
+/*
 
+expression  →  equality ;
+equality    →  comparison ( ( "!=" | "==" ) comparison )* ;
+comparison  →  term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term        →  factor ( ( "-" | "+" ) factor )* ;
+factor      →  unary ( ( "/" | "*" ) unary )* ;
+unary       →  ( "!" | "-" ) unary
+                    | primary ;
+primary     →  NUMBER | STRING | "true" | "false" | "nil"
+                    | "(" expression ")" ;
+*/
+
+// struct Parser {
+//     tokens: Vec<Token>,
+//     current: usize,
+// }
+
+// impl Parser {
+//     pub fn default() -> Self {
+//         Self { tokens: vec![], current: 0}
+//     }
+
+//     pub fn new(tokens: Vec<Token>) -> Self {
+//         Self {tokens, current: 0}
+//     }
+
+//     fn equals(&mut self, tok_types: &[TokenType]) -> bool {
+//         for tok_type in tok_types {
+//             if self.check(tok_type) {
+//                 self.advance();
+//                 return true;
+//             }
+//         }
+//         false
+//     }
+
+//     fn check(&self, tok_type: &TokenType) -> bool {
+//         if self.is_at_end() { return false; }
+
+//         self.peek().token_type == *tok_type
+//     }
+
+//     fn advance(&mut self) -> Token {
+//         if !self.is_at_end() { self.current += 1 }
+//         self.previous()
+//     }
+
+//     fn is_at_end(&self) -> bool {
+//         self.peek().token_type == TokenType::EOF
+//     }
+
+//     fn peek(&self) -> Token {
+//         self.tokens.get(self.current).expect("Expects a token").clone()
+//     }
+
+//     fn previous(&self) -> Token {
+//         self.tokens.get(self.current - 1).expect("Expects a token").clone()
+//     }
+
+//     fn comparison(&self) -> Box<dyn expr::Expr> {
+//         todo!()
+//     }
+
+//     fn expression(&self) -> Box<dyn expr::Expr> {
+//         self.equality()
+//     } 
+
+//     fn equality(&self) -> Box<dyn expr::Expr> {
+//         let mut expr = self.comparison();
+//         while self.equals(&vec![TokenType::BangEqual, TokenType::EqualEqual]) {
+//             let operator = self.previous();
+//             let right = self.comparison();
+//             expr = Box::new(expr::Binary::new(expr, operator, right));
+//         }
+//         expr
+//     }
+// }

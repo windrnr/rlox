@@ -3,7 +3,13 @@ name = "rlox"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "rlox"
+path = "src/bin/rlox/main.rs"
+
+[[bin]]
+name = "create_ast"
+path = "src/bin/create_ast.rs"
 
 [dependencies]
 colored = "2.1.0"

@@ -10,9 +10,8 @@ impl AstPrinter {
     }
 
     pub fn print(&mut self, expr: Box<dyn Expr>) {
-        match expr.accept(self) {
-            Value::String(str) => println!("{str}"),
-            _ => (),
+        if let Value::String(str) = expr.accept(self) {
+            println!("{str}")
         }
     }
 
@@ -23,12 +22,12 @@ impl AstPrinter {
             match expr.accept(self) {
                 Value::String(inner) => {
                     result.push_str(&inner);
-                    result.push_str(" ");
+                    result.push(' ');
                 }
                 _ => return None,
             }
         }
-        result.push_str(")");
+        result.push(')');
         Some(result)
     }
 }
@@ -36,13 +35,13 @@ impl AstPrinter {
 impl Visitor for AstPrinter {
     fn visit_unary_expr(&mut self, expr: &expr::Unary) -> Value {
         Value::String(
-            self.parenthesize(expr.operator.lexeme, &expr.children())
+            self.parenthesize(&expr.operator.lexeme, &expr.children())
                 .unwrap(),
         )
     }
     fn visit_binary_expr(&mut self, expr: &expr::Binary) -> Value {
         Value::String(
-            self.parenthesize(expr.operator.lexeme, &expr.children())
+            self.parenthesize(&expr.operator.lexeme, &expr.children())
                 .unwrap(),
         )
     }
