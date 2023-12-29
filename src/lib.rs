@@ -244,7 +244,7 @@ impl<'a> Scanner<'a> {
     pub fn new(source: &'a str) -> Self {
         Scanner {
             source,
-            tokens: Vec::new(),
+            tokens: vec![],
             start: 0,
             current: 0,
             line: 1,
@@ -392,10 +392,10 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token_literal(&mut self, token_type: TokenType, literal: Value) {
-        let text = &self.source[self.start..self.current];
+        let lexeme = &self.source[self.start..self.current];
         self.tokens.push(Token {
             token_type,
-            lexeme: text,
+            lexeme,
             literal,
             line: self.line,
         })
