@@ -28,7 +28,7 @@ impl Binary {
 
 impl Expr for Binary {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
-        return visitor.visit_binary_expr(self);
+        visitor.visit_binary_expr(self)
     }
     fn children(&self) -> Vec<&dyn Expr> {
         vec![&*self.left, &*self.right]
@@ -49,7 +49,7 @@ impl Grouping {
 
 impl Expr for Grouping {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
-        return visitor.visit_grouping_expr(self);
+        visitor.visit_grouping_expr(self)
     }
     fn children(&self) -> Vec<&dyn Expr> {
         vec![&*self.expression]
@@ -70,7 +70,7 @@ impl Literal {
 
 impl Expr for Literal {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
-        return visitor.visit_literal_expr(self);
+        visitor.visit_literal_expr(self)
     }
     fn children(&self) -> Vec<&dyn Expr> {
         vec![]
@@ -92,7 +92,7 @@ impl Unary {
 
 impl Expr for Unary {
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {
-        return visitor.visit_unary_expr(self);
+        visitor.visit_unary_expr(self)
     }
     fn children(&self) -> Vec<&dyn Expr> {
         vec![&*self.right]

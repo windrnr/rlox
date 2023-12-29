@@ -15,9 +15,9 @@ fn define_type(file_path: &Path, struct_name: &str, fields: &str) -> io::Result<
             if let Some((var_name, tok_name)) = field.to_string().split_once(':') {
                 let left_side = format!("pub {}", var_name.trim());
                 let rigth_side = match tok_name.trim() {
-                    "Token" => format!("crate::Token"),
-                    "Literal" => format!("crate::Value"),
-                    _ => format!("{}", tok_name.trim()),
+                    "Token" => "crate::Token".to_string(),
+                    "Literal" => "crate::Value".to_string(),
+                    _ => tok_name.trim().to_string(),
                 };
                 Some(format!("{left_side}:{rigth_side}, \n\t"))
             } else {
@@ -31,9 +31,9 @@ fn define_type(file_path: &Path, struct_name: &str, fields: &str) -> io::Result<
         .filter_map(|field| {
             if let Some((left_name, right_name)) = field.to_string().split_once(':') {
                 let rigth_side = match right_name.trim() {
-                    "Token" => format!("crate::Token"),
-                    "Literal" => format!("crate::Value"),
-                    _ => format!("{}", right_name.trim()),
+                    "Token" => "crate::Token".to_string(),
+                    "Literal" => "crate::Value".to_string(),
+                    _ => right_name.trim().to_string(),
                 };
                 Some(format!("{left_name}: {rigth_side}, "))
             } else {
@@ -67,7 +67,7 @@ impl {struct_name} {{
 
 impl Expr for {struct_name} {{
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value {{
-        return visitor.visit_{struct_name_lowercase}_expr(self);
+        visitor.visit_{struct_name_lowercase}_expr(self)
     }}
     fn children(&self) -> Vec<&dyn Expr> {{
         {children_return_statement}
@@ -77,10 +77,10 @@ impl Expr for {struct_name} {{
 "#,
         struct_name_lowercase = struct_name.to_lowercase(),
         children_return_statement = match struct_name.trim() {
-            "Binary" => format!("vec![&*self.left, &*self.right]"),
-            "Grouping" => format!("vec![&*self.expression]"),
-            "Literal" => format!("vec![]"),
-            "Unary" => format!("vec![&*self.right]"),
+            "Binary" => "vec![&*self.left, &*self.right]".to_string(),
+            "Grouping" => "vec![&*self.expression]".to_string(),
+            "Literal" => "vec![]".to_string(),
+            "Unary" => "vec![&*self.right]".to_string(),
             _ => unreachable!(),
         },
     );
@@ -126,16 +126,16 @@ fn append_to_file(file_path: &Path, content_to_append: &str) -> io::Result<()> {
 fn define_ast(file_path: &Path, types: Vec<&str>) -> io::Result<()> {
     visitor_trait_definition(file_path, &types)?;
 
-    let fn_definition = format!(
+    let fn_definition = 
         r#"
-pub trait Expr {{
+pub trait Expr {
     fn children(&self) -> Vec<&dyn Expr>;
     fn accept(&self, visitor: &mut dyn Visitor) -> crate::Value;
-}}
+}
 
 
-"#
-    );
+"#.to_string();
+
     append_to_file(file_path, &fn_definition)?;
 
     for t in types {
